@@ -1,0 +1,25 @@
+2025/04/22-15:27:12.357 3a8c Reusing MANIFEST C:\Users\U S U A R I O\Downloads\web_carencias\wapi-sacro\mi-wapi-send\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/04/22-15:27:12.358 3a8c Recovering log #306
+2025/04/22-15:27:12.407 3a8c Reusing old log C:\Users\U S U A R I O\Downloads\web_carencias\wapi-sacro\mi-wapi-send\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000306.log 
+2025/04/22-15:27:14.169 3e38 Level-0 table #317: started
+2025/04/22-15:27:14.179 3e38 Level-0 table #317: 253157 bytes OK
+2025/04/22-15:27:14.180 3e38 Delete type=0 #306
+2025/04/22-15:27:14.195 3e38 Manual compaction at level-0 from '\x00'\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00(\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/04/22-15:27:16.690 3e38 Compacting 1@1 + 7@2 files
+2025/04/22-15:27:16.784 3e38 Generated table #318@1: 47624 keys, 2214044 bytes
+2025/04/22-15:27:16.872 3e38 Generated table #319@1: 17460 keys, 2172979 bytes
+2025/04/22-15:27:16.919 3e38 Generated table #320@1: 3136 keys, 2154793 bytes
+2025/04/22-15:27:17.004 3e38 Generated table #321@1: 18168 keys, 2202613 bytes
+2025/04/22-15:27:17.110 3e38 Generated table #322@1: 28569 keys, 2236828 bytes
+2025/04/22-15:27:17.249 3e38 Generated table #323@1: 72823 keys, 2216321 bytes
+2025/04/22-15:27:17.351 3e38 Generated table #324@1: 55856 keys, 1277358 bytes
+2025/04/22-15:27:17.351 3e38 Compacted 1@1 + 7@2 files => 14474936 bytes
+2025/04/22-15:27:17.352 3e38 compacted to: files[ 0 0 7 0 0 0 0 ]
+2025/04/22-15:27:17.352 3e38 Delete type=2 #308
+2025/04/22-15:27:17.352 3e38 Delete type=2 #309
+2025/04/22-15:27:17.352 3e38 Delete type=2 #310
+2025/04/22-15:27:17.352 3e38 Delete type=2 #311
+2025/04/22-15:27:17.352 3e38 Delete type=2 #312
+2025/04/22-15:27:17.352 3e38 Delete type=2 #313
+2025/04/22-15:27:17.352 3e38 Delete type=2 #314
+2025/04/22-15:27:17.352 3e38 Delete type=2 #317

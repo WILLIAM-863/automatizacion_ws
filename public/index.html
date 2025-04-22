@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi WAPI Sender</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: #ffffff;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin: 1rem 0 0.3rem;
+    }
+    textarea, input[type="file"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+      resize: vertical;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.8rem 1.5rem;
+      background-color: #3498db;
+      border: none;
+      border-radius: 0.5rem;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    hr {
+      margin: 2rem 0;
+      border: none;
+      border-top: 1px solid #ccc;
+    }
+    #resultado, #resultadoImagen {
+      background-color: #f1f1f1;
+      padding: 1rem;
+      margin-top: 1rem;
+      border-radius: 0.5rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Enviar mensajes personalizados</h1>
+
+    <form id="sendForm">
+      <label>Números y nombres (uno por línea, separados por coma):</label>
+      <textarea id="dataText" rows="5" placeholder="521234567890,Juan&#10;521987654321,Ana"></textarea>
+
+      <label>Mensaje con {nombre}:</label>
+      <textarea id="message" rows="4" placeholder="Hola {nombre}, este es un mensaje personalizado."></textarea>
+
+      <button type="submit">📨 Enviar mensaje</button>
+    </form>
+
+    <div id="resultado"></div>
+
+    <hr>
+
+    <h2>Enviar imagen personalizada</h2>
+    <form id="imageForm" enctype="multipart/form-data">
+      <label>Números y nombres (uno por línea, separados por coma):</label>
+      <textarea id="imageDataText" rows="5" placeholder="521234567890,Juan&#10;521987654321,Ana"></textarea>
+
+      <label>Mensaje con {nombre}:</label>
+      <textarea id="imageCaption" rows="4" placeholder="Hola {nombre}, esta imagen es para ti."></textarea>
+
+      <label>Selecciona una imagen:</label>
+      <input type="file" name="imagen" required />
+
+      <button type="submit">🖼️ Enviar imagen</button>
+    </form>
+
+    <div id="resultadoImagen"></div>
+  </div>
+
+  <script>
+    document.getElementById('sendForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const dataText = document.getElementById('dataText').value;
+      const messageTemplate = document.getElementById('message').value;
+
+      const res = await fetch('/send-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataText, messageTemplate })
+      });
+
+      const json = await res.json();
+      document.getElementById('resultado').textContent = JSON.stringify(json, null, 2);
+    });
+
+    document.getElementById('imageForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const imageDataText = document.getElementById('imageDataText').value;
+      const captionTemplate = document.getElementById('imageCaption').value;
+      const lines = imageDataText.split('\n').map(l => l.trim()).filter(l => l);
+      const fileInput = this.querySelector('input[type="file"]');
+      const originalFile = fileInput.files[0];
+      const fileArrayBuffer = await originalFile.arrayBuffer();
+
+      const resultados = [];
+
+      for (const line of lines) {
+        const [numberRaw, nombre] = line.split(',');
+        const formData = new FormData();
+        formData.append('number', numberRaw.trim());
+        formData.append('caption', captionTemplate.replace('{nombre}', nombre || 'amigo'));
+
+        const fileCopy = new File([fileArrayBuffer], originalFile.name, { type: originalFile.type });
+        formData.append('imagen', fileCopy);
+
+        const res = await fetch('/send-image-form', {
+          method: 'POST',
+          body: formData
+        });
+
+        const json = await res.json();
+        resultados.push({ number: numberRaw.trim(), ...json });
+      }
+
+      document.getElementById('resultadoImagen').textContent = JSON.stringify(resultados, null, 2);
+    });
+  </script>
+</body>
+</html>
