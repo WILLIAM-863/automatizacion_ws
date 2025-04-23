@@ -1,151 +1,182 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode'); // Usamos qrcode para imagen base64
 const express = require('express');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const qrcode = require('qrcode');
+const cors = require('cors');
+let client = null; // fuera de la función
+const authPath = './.wwebjs_auth'; // o reemplaza con tu ruta personalizada
+
 
 const app = express();
+const port = 3000;
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
-// Variables globales para SSE
-let currentQR = null;
-let qrClients = [];
+const upload = multer({ dest: 'uploads/' });
+
+let qrSubscribers = [];
 
 app.get('/qr-stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-
-  if (currentQR) {
-    res.write(`data: ${currentQR}\n\n`);
-  }
-
-  qrClients.push(res);
+  qrSubscribers.push(res);
 
   req.on('close', () => {
-    qrClients = qrClients.filter(client => client !== res);
+    qrSubscribers = qrSubscribers.filter(sub => sub !== res);
   });
 });
 
-// Cliente de WhatsApp
-const client = new Client({
+function sendQRToClients(qrDataUrl) {
+  qrSubscribers.forEach(sub => sub.write(`data: ${qrDataUrl}\n\n`));
+}
+
+function sendReadySignal() {
+  qrSubscribers.forEach(sub => sub.write(`data: ready\n\n`));
+}
+
+function startSock() {
+  sock = makeWASocket({
+    printQRInTerminal: false,
+    auth: state,
+  });
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, qr, isNewLogin } = update;
+
+    if (qr) {
+      currentQR = qr;
+      const qrDataUrl = qrImage.imageSync(qr, { type: 'png' });
+      const base64Image = `data:image/png;base64,${qrDataUrl.toString('base64')}`;
+      clients.forEach(res => res.write(`data: ${base64Image}\n\n`));
+    }
+
+    if (connection === 'open') {
+      clients.forEach(res => res.write(`data: ready\n\n`));
+      clients.length = 0;
+    }
+
+    if (connection === 'close') {
+      const shouldReconnect = (update.lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+      if (shouldReconnect) {
+        startSock();
+      }
+    }
+  });
+
+  sock.ev.on('creds.update', saveCreds);
+}
+
+
+// Crear cliente de WhatsApp
+function createClient() {
+  client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
-    ]
+    args: ['--no-sandbox']
   }
 });
 
 client.on('qr', async (qr) => {
-  console.log('Escanea el QR con tu celular');
-  try {
-    const qrDataURL = await qrcode.toDataURL(qr);
-    currentQR = qrDataURL;
-    qrClients.forEach(client => client.write(`data: ${qrDataURL}\n\n`));
-  } catch (error) {
-    console.error('❌ Error al generar QR:', error.message);
-  }
+  const qrDataUrl = await qrcode.toDataURL(qr);
+  sendQRToClients(qrDataUrl);
 });
 
 client.on('ready', () => {
-  console.log('✅ WhatsApp listo para enviar mensajes');
-  qrClients.forEach(client => client.write(`data: ready\n\n`));
-  currentQR = null;
+  console.log('✅ Cliente listo');
+  sendReadySignal();
 });
+
+client.on('auth_failure', msg => {
+  console.error('❌ Fallo de autenticación:', msg);
+});
+
+client.on('disconnected', async (reason) => {
+  console.log('🔌 Cliente desconectado:', reason);
+  
+  // Cerramos la instancia del cliente cuando se desconecte
+  await client.destroy();
+  
+  // Vuelve a crear una nueva instancia del cliente
+  createClient();
+});
+
 
 client.initialize();
-
-// Rutas
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+}
+createClient();
+// Enviar mensajes de texto personalizados
 app.post('/send-text', async (req, res) => {
-  const { dataText, messageTemplate } = req.body;
-  if (!dataText || !messageTemplate) {
-    return res.status(400).send({ status: 'error', message: 'Faltan datos' });
-  }
-
-  const lines = dataText.split('\n').map(l => l.trim()).filter(l => l);
-  const resultados = [];
-
-  for (const line of lines) {
-    const [numberRaw, nombre] = line.split(',');
-    const number = numberRaw.trim();
-    const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-    const mensajePersonalizado = messageTemplate.replace('{nombre}', nombre || 'amigo');
-
-    try {
-      await client.sendMessage(chatId, mensajePersonalizado);
-      resultados.push({ number, status: 'enviado' });
-    } catch (err) {
-      resultados.push({ number, status: 'error', error: err.message });
-    }
-  }
-
-  res.send({ status: 'ok', resultados });
-});
-
-// Configuración de subida de imagen
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'imagenes/');
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const filename = `${Date.now()}${ext}`;
-    cb(null, filename);
-  }
-});
-const upload = multer({ storage });
-
-app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
-  const { number, caption } = req.body;
-  const filePath = path.resolve(req.file.path);
-  const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-
   try {
-    const media = MessageMedia.fromFilePath(filePath);
-    await client.sendMessage(chatId, media, { caption });
-    res.send({ status: 'success', message: 'Imagen enviada' });
-  } catch (error) {
-    console.error('❌ Error al enviar imagen:', error.message);
-    res.status(500).send({ status: 'error', error: error.message });
+    const { dataText, messageTemplate } = req.body;
+    const lines = dataText.split('\n').map(l => l.trim()).filter(Boolean);
+
+    const results = [];
+
+    for (const line of lines) {
+      const [numberRaw, nombre] = line.split(',');
+      const number = numberRaw.trim();
+      const message = messageTemplate.replace('{nombre}', nombre?.trim() || 'amigo');
+
+      const chatId = number + '@c.us';
+      await client.sendMessage(chatId, message);
+      results.push({ number, status: 'enviado' });
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error enviando mensajes' });
   }
 });
 
-const SESSION_DIR = path.join(__dirname, '.wwebjs_auth'); // ruta correcta a la carpeta de sesión
+// Enviar imagen con caption personalizado
+app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
+  try {
+    const { number, caption } = req.body;
+    const filepath = req.file.path;
+    const media = MessageMedia.fromFilePath(filepath);
 
+    const chatId = number.trim() + '@c.us';
+    await client.sendMessage(chatId, media, { caption });
+
+    fs.unlinkSync(filepath); // Eliminar archivo temporal
+
+    res.json({ number, status: 'imagen enviada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error enviando imagen' });
+  }
+});
+
+// Cerrar sesión
 app.post('/logout', async (req, res) => {
   try {
-    await client.destroy(); // cierra sesión activa
-    fs.rmSync(SESSION_DIR, { recursive: true, force: true }); // elimina carpeta de sesión
+    if (client) {
+      await client.destroy();
+      client = null;
+    }
 
-    // 🔁 Reinicia el cliente
-    client.initialize();
+ // Eliminar carpeta de sesión
+ if (fs.existsSync(authPath)) {
+  fs.rmSync(authPath, { recursive: true, force: true });
+  console.log('🧹 Carpeta de sesión eliminada');
+}
 
-    res.send({ status: 'ok', message: 'Sesión cerrada correctamente' });
-  } catch (error) {
-    console.error('❌ Error al cerrar sesión:', error.message);
-    res.status(500).send({ status: 'error', message: error.message });
+    createClient();
+    res.json({ message: 'Sesión cerrada correctamente' });
+  } catch (err) {
+    console.error('❌ Error cerrando sesión:', err);
+    res.status(500).json({ message: 'Error cerrando sesión' });
   }
 });
 
 
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
 });
