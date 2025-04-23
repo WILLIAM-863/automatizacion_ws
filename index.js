@@ -1,18 +1,36 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode'); // Usamos qrcode para imagen base64
 const express = require('express');
-const app = express();
-const path = require('path');
 const multer = require('multer');
+const path = require('path');
 const fs = require('fs');
 
-
-
-// Esto sirve la carpeta "public" con tu HTML
-app.use(express.static(path.join(__dirname, 'public')));
+const app = express();
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Variables globales para SSE
+let currentQR = null;
+let qrClients = [];
+
+app.get('/qr-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  if (currentQR) {
+    res.write(`data: ${currentQR}\n\n`);
+  }
+
+  qrClients.push(res);
+
+  req.on('close', () => {
+    qrClients = qrClients.filter(client => client !== res);
+  });
+});
+
+// Cliente de WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -30,18 +48,32 @@ const client = new Client({
   }
 });
 
-client.on('qr', (qr) => {
+client.on('qr', async (qr) => {
   console.log('Escanea el QR con tu celular');
-  qrcode.generate(qr, { small: true });
+  try {
+    const qrDataURL = await qrcode.toDataURL(qr);
+    currentQR = qrDataURL;
+    qrClients.forEach(client => client.write(`data: ${qrDataURL}\n\n`));
+  } catch (error) {
+    console.error('❌ Error al generar QR:', error.message);
+  }
 });
 
 client.on('ready', () => {
   console.log('✅ WhatsApp listo para enviar mensajes');
+  qrClients.forEach(client => client.write(`data: ready\n\n`));
+  currentQR = null;
+});
+
+client.initialize();
+
+// Rutas
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.post('/send-text', async (req, res) => {
   const { dataText, messageTemplate } = req.body;
-
   if (!dataText || !messageTemplate) {
     return res.status(400).send({ status: 'error', message: 'Faltan datos' });
   }
@@ -66,40 +98,7 @@ app.post('/send-text', async (req, res) => {
   res.send({ status: 'ok', resultados });
 });
 
-
-app.post('/send-image', async (req, res) => {
-  const { number, imagePath, caption } = req.body;
-  const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-
-  try {
-    const media = MessageMedia.fromFilePath(imagePath);
-    await client.sendMessage(chatId, media, { caption });
-
-    // Eliminar la imagen una vez enviada
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error('⚠️ No se pudo eliminar la imagen:', err.message);
-      } else {
-        console.log('🧹 Imagen eliminada:', filePath);
-      }
-    });
-    
-    res.send({ status: 'success', message: 'Imagen enviada y eliminada' });
-    
-  } catch (error) {
-    res.status(500).send({ status: 'error', error: error.message });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-client.initialize();
-app.listen(3000, () => console.log('🚀 Servidor corriendo en http://localhost:3000'));
-
-
-
+// Configuración de subida de imagen
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'imagenes/');
@@ -110,18 +109,11 @@ const storage = multer.diskStorage({
     cb(null, filename);
   }
 });
-
 const upload = multer({ storage });
-
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
   const { number, caption } = req.body;
-  const filePath = path.resolve(req.file.path); // ruta absoluta por seguridad
-
-  console.log('➡️ Archivo recibido:', req.file);
-
+  const filePath = path.resolve(req.file.path);
   const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
 
   try {
@@ -132,4 +124,28 @@ app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
     console.error('❌ Error al enviar imagen:', error.message);
     res.status(500).send({ status: 'error', error: error.message });
   }
+});
+
+const SESSION_DIR = path.join(__dirname, '.wwebjs_auth'); // ruta correcta a la carpeta de sesión
+
+app.post('/logout', async (req, res) => {
+  try {
+    await client.destroy(); // cierra sesión activa
+    fs.rmSync(SESSION_DIR, { recursive: true, force: true }); // elimina carpeta de sesión
+
+    // 🔁 Reinicia el cliente
+    client.initialize();
+
+    res.send({ status: 'ok', message: 'Sesión cerrada correctamente' });
+  } catch (error) {
+    console.error('❌ Error al cerrar sesión:', error.message);
+    res.status(500).send({ status: 'error', message: error.message });
+  }
+});
+
+
+// Iniciar servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });
