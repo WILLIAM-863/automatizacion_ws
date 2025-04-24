@@ -57,6 +57,23 @@ function getOrCreateClient(numero) {
   clients.set(numero, client);
   return client;
 }
+// Verificar el estado de la sesión para un número específico
+app.get('/session-status/:numero', async (req, res) => {
+  const numero = req.params.numero;
+
+  try {
+    const client = clients.get(numero);
+
+    if (client && client.pupPage && client.pupPage.isConnected()) {
+      return res.json({ estado: 'ready' });
+    }
+
+    return res.json({ estado: 'not_ready' });
+  } catch (err) {
+    console.error(`❌ Error verificando estado de sesión para ${numero}:`, err);
+    res.status(500).json({ error: 'Error verificando estado de sesión' });
+  }
+});
 
 // Iniciar cliente y enviar QR
 app.get('/qr/:numero', async (req, res) => {

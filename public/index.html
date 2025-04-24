@@ -176,9 +176,24 @@
     numeroUsuario.addEventListener('change', () => {
       const numero = numeroUsuario.value.trim();
       if (numero) {
-        iniciarCliente(numero);
+        verificarSesion(numero);
       }
     });
+  
+    async function verificarSesion(numero) {
+      try {
+        const res = await fetch(`/session-status/${numero}`);
+        const json = await res.json();
+        if (json.estado === 'ready') {
+          qrModal.style.display = 'none';
+          alert('✅ Ya estás conectado');
+        } else {
+          iniciarCliente(numero); // No hay sesión activa, iniciamos cliente
+        }
+      } catch (err) {
+        console.error('Error verificando sesión:', err);
+      }
+    }
   
     async function iniciarCliente(numero) {
       qrModal.style.display = 'flex';
@@ -186,10 +201,7 @@
       qrStatus.textContent = 'Esperando código QR...';
   
       try {
-        // Inicia el cliente en el backend
         await fetch(`/qr/${numero}`);
-        
-        // Conecta vía SSE para escuchar QR o estado 'ready'
         const eventSource = new EventSource(`/qr-stream/${numero}`);
         eventSource.onmessage = (event) => {
           if (event.data === 'ready') {
@@ -223,6 +235,7 @@
       location.reload();
     });
   </script>
+  
   
 </body>
 </html>
