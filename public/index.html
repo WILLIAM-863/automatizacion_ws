@@ -67,6 +67,8 @@
   </style>
 </head>
 <body>
+
+
   <div class="container">
     <h1>Enviar mensajes personalizados</h1>
 
@@ -104,6 +106,8 @@
 
   <div id="qrModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index:1000;">
     <div style="background:white; padding:2rem; border-radius:1rem; max-width: 90%; text-align:center;">
+      <label>Tu número (con código país):</label>
+      <input type="text" id="numeroUsuario" placeholder="Ej. 573001234567" required />
       <h2>Escanea el código QR</h2>
       <div id="qrContainer"></div>
       <p id="qrStatus" style="margin-top:1rem; font-weight:bold;"></p>
@@ -113,88 +117,112 @@
   <script>
     document.getElementById('sendForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-
+  
       const dataText = document.getElementById('dataText').value;
       const messageTemplate = document.getElementById('message').value;
-
+      const senderNumber = document.getElementById('numeroUsuario').value.trim();
+  
       const res = await fetch('/send-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataText, messageTemplate })
+        body: JSON.stringify({ dataText, messageTemplate, senderNumber })
       });
-
+  
       const json = await res.json();
       document.getElementById('resultado').textContent = JSON.stringify(json, null, 2);
     });
-
+  
     document.getElementById('imageForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-
+  
       const imageDataText = document.getElementById('imageDataText').value;
       const captionTemplate = document.getElementById('imageCaption').value;
+      const senderNumber = document.getElementById('numeroUsuario').value.trim();
       const lines = imageDataText.split('\n').map(l => l.trim()).filter(l => l);
       const fileInput = this.querySelector('input[type="file"]');
       const originalFile = fileInput.files[0];
       const fileArrayBuffer = await originalFile.arrayBuffer();
-
+  
       const resultados = [];
-
+  
       for (const line of lines) {
         const [numberRaw, nombre] = line.split(',');
         const formData = new FormData();
         formData.append('number', numberRaw.trim());
         formData.append('caption', captionTemplate.replace('{nombre}', nombre || 'amigo'));
-
+        formData.append('senderNumber', senderNumber);
+  
         const fileCopy = new File([fileArrayBuffer], originalFile.name, { type: originalFile.type });
         formData.append('imagen', fileCopy);
-
+  
         const res = await fetch('/send-image-form', {
           method: 'POST',
           body: formData
         });
-
+  
         const json = await res.json();
         resultados.push({ number: numberRaw.trim(), ...json });
       }
-
+  
       document.getElementById('resultadoImagen').textContent = JSON.stringify(resultados, null, 2);
     });
-
+  </script>
+  <script>
     const qrModal = document.getElementById('qrModal');
     const qrContainer = document.getElementById('qrContainer');
     const qrStatus = document.getElementById('qrStatus');
-
-    const eventSource = new EventSource('/qr-stream');
-
-    eventSource.onmessage = function (event) {
-      if (event.data === 'ready') {
-        qrModal.style.display = 'none';
-        qrStatus.textContent = '✅ Sesión autenticada';
-        eventSource.close(); // Cerramos la conexión SSE
-      } else {
-        qrContainer.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = event.data;
-        img.style.maxWidth = '100%';
-        qrContainer.appendChild(img);
-        qrModal.style.display = 'flex';
-        qrStatus.textContent = 'Escanea el código QR con tu celular';
-      }
-    };
-
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      const confirmLogout = confirm('¿Seguro que quieres cerrar la sesión de WhatsApp?');
-      if (!confirmLogout) return;
-
-      try {
-        const res = await fetch('/logout', { method: 'POST' });
-        const json = await res.json();
-        alert(json.message);
-        location.reload();
-      } catch (err) {
-        alert('Error cerrando sesión: ' + err.message);
+    const numeroUsuario = document.getElementById('numeroUsuario');
+  
+    numeroUsuario.addEventListener('change', () => {
+      const numero = numeroUsuario.value.trim();
+      if (numero) {
+        iniciarCliente(numero);
       }
     });
+  
+    async function iniciarCliente(numero) {
+      qrModal.style.display = 'flex';
+      qrContainer.innerHTML = '';
+      qrStatus.textContent = 'Esperando código QR...';
+  
+      try {
+        // Inicia el cliente en el backend
+        await fetch(`/qr/${numero}`);
+        
+        // Conecta vía SSE para escuchar QR o estado 'ready'
+        const eventSource = new EventSource(`/qr-stream/${numero}`);
+        eventSource.onmessage = (event) => {
+          if (event.data === 'ready') {
+            qrStatus.textContent = '✅ Cliente listo para enviar mensajes';
+            qrContainer.innerHTML = '';
+            setTimeout(() => {
+              qrModal.style.display = 'none';
+            }, 1500);
+            eventSource.close();
+          } else {
+            qrContainer.innerHTML = `<img src="${event.data}" style="max-width:100%; height:auto;" />`;
+            qrStatus.textContent = 'Escanea el código QR';
+          }
+        };
+      } catch (err) {
+        qrStatus.textContent = '❌ Error iniciando cliente';
+        console.error(err);
+      }
+    }
+  
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      const numero = numeroUsuario.value.trim();
+      if (!numero) return alert('Ingresa tu número para cerrar sesión');
+      const res = await fetch('/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero })
+      });
+      const json = await res.json();
+      alert(json.message || 'Sesión cerrada');
+      location.reload();
+    });
   </script>
+  
 </body>
 </html>
