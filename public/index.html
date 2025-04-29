@@ -190,7 +190,8 @@
                     <i class="fas fa-cloud-upload-alt text-gray-400 mb-2 text-xl"></i>
                     <p class="text-xs text-gray-500">Haz clic para seleccionar</p>
                   </div>
-                  <input type="file" name="imagen" class="hidden" required />
+                  <input id="imagen" name="imagen" type="file" class="hidden" required />
+
                 </label>
               </div>
             </div>
@@ -543,17 +544,12 @@
       const fileLabel = fileInput.parentElement;
       
       fileInput.addEventListener('change', function() {
-        if (this.files.length > 0) {
-          const fileName = this.files[0].name;
-          fileLabel.innerHTML = `
-            <div class="flex flex-col items-center justify-center pt-5 pb-6">
-              <i class="fas fa-file-image text-whatsapp mb-2 text-xl"></i>
-              <p class="text-xs text-gray-700 truncate max-w-[90%]">${fileName}</p>
-            </div>
-            <input type="file" name="imagen" class="hidden" required />
-          `;
-        }
-      });
+  if (this.files.length > 0) {
+    const fileName = this.files[0].name;
+    fileLabel.querySelector('p').textContent = fileName;
+  }
+});
+
       
       // Configurar intervalo para actualizar estadísticas periódicamente cuando esté conectado
       setInterval(() => {
