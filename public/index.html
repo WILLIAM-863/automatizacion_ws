@@ -2,119 +2,242 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi WAPI Sender</title>
-  <style>
-    * {
-      box-sizing: border-box;
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAPI Sender</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            whatsapp: '#25D366',
+            walight: '#dcf8c6',
+            wadark: '#075e54',
+            wasecondary: '#128c7e',
+          }
+        }
+      }
     }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f4f6f8;
-      margin: 0;
-      padding: 2rem;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-      background-color: #ffffff;
-      padding: 2rem;
-      border-radius: 1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    h1, h2 {
-      text-align: center;
-      color: #2c3e50;
-    }
-    label {
-      font-weight: 600;
-      display: block;
-      margin: 1rem 0 0.3rem;
-    }
-    textarea, input[type="file"] {
-      width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #ccc;
-      border-radius: 0.5rem;
-      resize: vertical;
-    }
-    button {
-      margin-top: 1rem;
-      padding: 0.8rem 1.5rem;
-      background-color: #3498db;
-      border: none;
-      border-radius: 0.5rem;
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-    button:hover {
-      background-color: #2980b9;
-    }
-    hr {
-      margin: 2rem 0;
-      border: none;
-      border-top: 1px solid #ccc;
-    }
-    #resultado, #resultadoImagen {
-      background-color: #f1f1f1;
-      padding: 1rem;
-      margin-top: 1rem;
-      border-radius: 0.5rem;
-      font-family: monospace;
-      white-space: pre-wrap;
-    }
-  </style>
+  </script>
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Logo y Cabecera -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center mb-2">
+        <i class="fab fa-whatsapp text-4xl text-whatsapp mr-3"></i>
+        <h1 class="text-3xl font-bold text-wadark">WAPI Sender</h1>
+      </div>
+      <p class="text-gray-600">Envía mensajes personalizados de WhatsApp de forma masiva</p>
+    </div>
 
-
-  <div class="container">
-    <h1>Enviar mensajes personalizados</h1>
-
-    <form id="sendForm">
-      <label>Números y nombres (uno por línea, separados por coma):</label>
-      <textarea id="dataText" rows="5" placeholder="521234567890,Juan&#10;521987654321,Ana"></textarea>
-
-      <label>Mensaje con {nombre}:</label>
-      <textarea id="message" rows="4" placeholder="Hola {nombre}, este es un mensaje personalizado."></textarea>
-
-      <button type="submit">📨 Enviar mensaje</button>
-    </form>
-
-    <div id="resultado"></div>
-
-    <hr>
-
-    <h2>Enviar imagen personalizada</h2>
-    <form id="imageForm" enctype="multipart/form-data">
-      <label>Números y nombres (uno por línea, separados por coma):</label>
-      <textarea id="imageDataText" rows="5" placeholder="521234567890,Juan&#10;521987654321,Ana"></textarea>
-
-      <label>Mensaje con {nombre}:</label>
-      <textarea id="imageCaption" rows="4" placeholder="Hola {nombre}, esta imagen es para ti."></textarea>
-
-      <label>Selecciona una imagen:</label>
-      <input type="file" name="imagen" required />
-
-      <button type="submit">🖼️ Enviar imagen</button>
-    </form>
-
-    <div id="resultadoImagen"></div>
-    <button id="logoutBtn" style="background-color: #e74c3c; color: white; margin-top: 2rem;">🔒 Cerrar sesión de WhatsApp</button>
+    <!-- Tarjetas principales -->
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <!-- Tarjeta de enviar texto -->
+      <div class="bg-white rounded-xl shadow-md overflow-hidden transition-all hover:shadow-lg">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <div class="bg-whatsapp bg-opacity-20 p-3 rounded-full">
+              <i class="fas fa-comment text-whatsapp text-xl"></i>
+            </div>
+            <h2 class="ml-3 text-xl font-semibold text-gray-800">Enviar Mensajes</h2>
+          </div>
+          
+          <form id="sendForm" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Números y nombres:</label>
+              <textarea 
+                id="dataText" 
+                rows="4" 
+                placeholder="521234567890,Juan&#10;521987654321,Ana" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp focus:border-transparent"
+              ></textarea>
+              <p class="text-xs text-gray-500 mt-1">Un contacto por línea, separados por coma</p>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje personalizado:</label>
+              <textarea 
+                id="message" 
+                rows="4" 
+                placeholder="Hola {nombre}, este es un mensaje personalizado." 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp focus:border-transparent"
+              ></textarea>
+              <p class="text-xs text-gray-500 mt-1">Usa {nombre} para personalizar tu mensaje</p>
+            </div>
+            
+            <button 
+              type="submit" 
+              class="w-full flex items-center justify-center px-4 py-3 bg-whatsapp hover:bg-wasecondary text-white font-medium rounded-lg transition-colors"
+            >
+              <i class="fas fa-paper-plane mr-2"></i>
+              Enviar Mensajes
+            </button>
+          </form>
+          
+          <div id="resultado" class="mt-4 p-4 bg-gray-100 rounded-lg text-sm font-mono hidden"></div>
+        </div>
+      </div>
+      
+      <!-- Tarjeta de enviar imagen -->
+      <div class="bg-white rounded-xl shadow-md overflow-hidden transition-all hover:shadow-lg">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <div class="bg-whatsapp bg-opacity-20 p-3 rounded-full">
+              <i class="fas fa-image text-whatsapp text-xl"></i>
+            </div>
+            <h2 class="ml-3 text-xl font-semibold text-gray-800">Enviar Imágenes</h2>
+          </div>
+          
+          <form id="imageForm" class="space-y-4" enctype="multipart/form-data">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Números y nombres:</label>
+              <textarea 
+                id="imageDataText" 
+                rows="4" 
+                placeholder="521234567890,Juan&#10;521987654321,Ana" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp focus:border-transparent"
+              ></textarea>
+              <p class="text-xs text-gray-500 mt-1">Un contacto por línea, separados por coma</p>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje junto a la imagen:</label>
+              <textarea 
+                id="imageCaption" 
+                rows="3" 
+                placeholder="Hola {nombre}, esta imagen es para ti." 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp focus:border-transparent"
+              ></textarea>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Selecciona una imagen:</label>
+              <div class="flex items-center justify-center w-full">
+                <label class="flex flex-col w-full h-24 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:border-whatsapp cursor-pointer transition-all">
+                  <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                    <i class="fas fa-cloud-upload-alt text-gray-400 mb-2 text-xl"></i>
+                    <p class="text-xs text-gray-500">Haz clic para seleccionar</p>
+                  </div>
+                  <input type="file" name="imagen" class="hidden" required />
+                </label>
+              </div>
+            </div>
+            
+            <button 
+              type="submit" 
+              class="w-full flex items-center justify-center px-4 py-3 bg-whatsapp hover:bg-wasecondary text-white font-medium rounded-lg transition-colors"
+            >
+              <i class="fas fa-image mr-2"></i>
+              Enviar Imágenes
+            </button>
+          </form>
+          
+          <div id="resultadoImagen" class="mt-4 p-4 bg-gray-100 rounded-lg text-sm font-mono hidden"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Panel de estado y controles -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
+        <div class="flex items-center">
+          <div id="statusIndicator" class="w-3 h-3 rounded-full bg-gray-400 mr-2"></div>
+          <span id="connectionStatus" class="text-sm font-medium text-gray-700">No conectado</span>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+          <button id="showQrBtn" class="px-4 py-2 bg-wasecondary hover:bg-wadark text-white rounded-lg flex items-center transition-colors">
+            <i class="fas fa-qrcode mr-2"></i>
+            Conectar WhatsApp
+          </button>
+          
+          <button id="logoutBtn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center transition-colors">
+            <i class="fas fa-sign-out-alt mr-2"></i>
+            Desconectar
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="text-center text-gray-500 text-sm">
+      <p>WAPI Sender &copy; 2025 - Usa WhatsApp de forma responsable</p>
+    </footer>
   </div>
 
-  <div id="qrModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index:1000;">
-    <div style="background:white; padding:2rem; border-radius:1rem; max-width: 90%; text-align:center;">
-      <label>Tu número (con código país):</label>
-      <input type="text" id="numeroUsuario" placeholder="Ej. 573001234567" required />
-      <h2>Escanea el código QR</h2>
-      <div id="qrContainer"></div>
-      <p id="qrStatus" style="margin-top:1rem; font-weight:bold;"></p>
+  <!-- Modal QR -->
+  <div id="qrModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden transition-opacity duration-300">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+      <div class="text-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">Conecta tu WhatsApp</h3>
+        <p class="text-gray-600 text-sm mt-1">Escanea el código con la app de WhatsApp</p>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Tu número (con código país):</label>
+        <input 
+          type="text" 
+          id="numeroUsuario" 
+          placeholder="Ej. 573001234567" 
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp focus:border-transparent"
+          required
+        />
+      </div>
+
+      <div id="qrContainer" class="flex items-center justify-center p-4 bg-gray-100 rounded-lg min-h-[200px]">
+        <div class="animate-pulse text-gray-400">
+          <i class="fas fa-spinner fa-spin text-2xl"></i>
+          <p class="mt-2 text-sm">Esperando código QR...</p>
+        </div>
+      </div>
+
+      <p id="qrStatus" class="text-center mt-4 font-medium text-gray-700"></p>
+
+      <div class="mt-6 flex justify-end">
+        <button id="closeModal" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition-colors">
+          Cerrar
+        </button>
+      </div>
     </div>
   </div>
 
   <script>
+    // Funciones de utilidad para UI
+    function showElement(el) {
+      if (typeof el === 'string') el = document.getElementById(el);
+      if (el) el.classList.remove('hidden');
+    }
+    
+    function hideElement(el) {
+      if (typeof el === 'string') el = document.getElementById(el);
+      if (el) el.classList.add('hidden');
+    }
+    
+    function setStatusConnected(isConnected) {
+      const indicator = document.getElementById('statusIndicator');
+      const status = document.getElementById('connectionStatus');
+      
+      if (isConnected) {
+        indicator.classList.remove('bg-gray-400', 'bg-red-500');
+        indicator.classList.add('bg-green-500');
+        status.textContent = 'Conectado';
+      } else {
+        indicator.classList.remove('bg-gray-400', 'bg-green-500');
+        indicator.classList.add('bg-red-500');
+        status.textContent = 'Desconectado';
+      }
+    }
+    
+    // Mostrar resultados
+    function mostrarResultado(id, datos) {
+      const el = document.getElementById(id);
+      el.textContent = JSON.stringify(datos, null, 2);
+      showElement(el);
+    }
+    
+    // Event Listeners
     document.getElementById('sendForm').addEventListener('submit', async function (e) {
       e.preventDefault();
   
@@ -129,7 +252,7 @@
       });
   
       const json = await res.json();
-      document.getElementById('resultado').textContent = JSON.stringify(json, null, 2);
+      mostrarResultado('resultado', json);
     });
   
     document.getElementById('imageForm').addEventListener('submit', async function (e) {
@@ -164,14 +287,22 @@
         resultados.push({ number: numberRaw.trim(), ...json });
       }
   
-      document.getElementById('resultadoImagen').textContent = JSON.stringify(resultados, null, 2);
+      mostrarResultado('resultadoImagen', resultados);
     });
-  </script>
-  <script>
+  
+    // Lógica del QR y Conexión
     const qrModal = document.getElementById('qrModal');
     const qrContainer = document.getElementById('qrContainer');
     const qrStatus = document.getElementById('qrStatus');
     const numeroUsuario = document.getElementById('numeroUsuario');
+    
+    document.getElementById('showQrBtn').addEventListener('click', () => {
+      showElement(qrModal);
+    });
+    
+    document.getElementById('closeModal').addEventListener('click', () => {
+      hideElement(qrModal);
+    });
   
     numeroUsuario.addEventListener('change', () => {
       const numero = numeroUsuario.value.trim();
@@ -185,19 +316,27 @@
         const res = await fetch(`/session-status/${numero}`);
         const json = await res.json();
         if (json.estado === 'ready') {
-          qrModal.style.display = 'none';
+          hideElement(qrModal);
+          setStatusConnected(true);
           alert('✅ Ya estás conectado');
         } else {
+          setStatusConnected(false);
           iniciarCliente(numero); // No hay sesión activa, iniciamos cliente
         }
       } catch (err) {
         console.error('Error verificando sesión:', err);
+        setStatusConnected(false);
       }
     }
   
     async function iniciarCliente(numero) {
-      qrModal.style.display = 'flex';
-      qrContainer.innerHTML = '';
+      showElement(qrModal);
+      qrContainer.innerHTML = `
+        <div class="animate-pulse text-gray-400 text-center">
+          <i class="fas fa-spinner fa-spin text-2xl"></i>
+          <p class="mt-2 text-sm">Generando código QR...</p>
+        </div>
+      `;
       qrStatus.textContent = 'Esperando código QR...';
   
       try {
@@ -206,18 +345,30 @@
         eventSource.onmessage = (event) => {
           if (event.data === 'ready') {
             qrStatus.textContent = '✅ Cliente listo para enviar mensajes';
-            qrContainer.innerHTML = '';
+            qrContainer.innerHTML = `
+              <div class="text-center p-6">
+                <i class="fas fa-check-circle text-green-500 text-5xl"></i>
+                <p class="mt-3 font-medium">WhatsApp conectado correctamente</p>
+              </div>
+            `;
+            setStatusConnected(true);
             setTimeout(() => {
-              qrModal.style.display = 'none';
+              hideElement(qrModal);
             }, 1500);
             eventSource.close();
           } else {
-            qrContainer.innerHTML = `<img src="${event.data}" style="max-width:100%; height:auto;" />`;
-            qrStatus.textContent = 'Escanea el código QR';
+            qrContainer.innerHTML = `<img src="${event.data}" class="max-w-full h-auto" />`;
+            qrStatus.textContent = 'Escanea el código QR con WhatsApp';
           }
         };
       } catch (err) {
         qrStatus.textContent = '❌ Error iniciando cliente';
+        qrContainer.innerHTML = `
+          <div class="text-center p-6">
+            <i class="fas fa-exclamation-circle text-red-500 text-5xl"></i>
+            <p class="mt-3 text-red-500">No se pudo conectar</p>
+          </div>
+        `;
         console.error(err);
       }
     }
@@ -225,17 +376,37 @@
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       const numero = numeroUsuario.value.trim();
       if (!numero) return alert('Ingresa tu número para cerrar sesión');
+      
       const res = await fetch('/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numero })
       });
+      
       const json = await res.json();
       alert(json.message || 'Sesión cerrada');
-      location.reload();
+      setStatusConnected(false);
+    });
+    
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', function() {
+      // Personalizar el input de archivo para mostrar el nombre del archivo seleccionado
+      const fileInput = document.querySelector('input[type="file"]');
+      const fileLabel = fileInput.parentElement;
+      
+      fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+          const fileName = this.files[0].name;
+          fileLabel.innerHTML = `
+            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+              <i class="fas fa-file-image text-whatsapp mb-2 text-xl"></i>
+              <p class="text-xs text-gray-700 truncate max-w-[90%]">${fileName}</p>
+            </div>
+            <input type="file" name="imagen" class="hidden" required />
+          `;
+        }
+      });
     });
   </script>
-  
-  
 </body>
 </html>
