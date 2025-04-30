@@ -20,7 +20,7 @@ const messageCounts = new Map(); // { numero: { hourly: {timestamp: count}, dail
 
 // Control de tiempo de escaneo de QR
 const qrTimeouts = new Map(); // { numero: timeoutId }
-const QR_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutos para escanear el QR
+const QR_TIMEOUT_MS = 1 * 60 * 1000; // 2 minutos para escanear el QR
 
 // Límites de envío
 const HOURLY_LIMIT = 300;
