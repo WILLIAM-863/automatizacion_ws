@@ -11,12 +11,16 @@ const app = express();
 const port = 3000;
 
 const clients = new Map(); // { numero: Client }
-const qrSubscribers = {};  // { numero: [res1, res2, ...] }
+const qrSubscribers = {}; // { numero: [res1, res2, ...] }
 const authPath = './.wwebjs_auth';
 const upload = multer({ dest: 'uploads/' });
 
 // Sistema de seguimiento de mensajes
 const messageCounts = new Map(); // { numero: { hourly: {timestamp: count}, daily: count, lastReset: Date } }
+
+// Control de tiempo de escaneo de QR
+const qrTimeouts = new Map(); // { numero: timeoutId }
+const QR_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutos para escanear el QR
 
 // Límites de envío
 const HOURLY_LIMIT = 300;
@@ -24,9 +28,151 @@ const DAILY_LIMIT = 2000;
 const MIN_DELAY_MS = 2000; // 2 segundos
 const MAX_DELAY_MS = 5000; // 5 segundos
 
+// Configurar temporizador para limpiar todas las sesiones cada 24 horas
+const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Limpiar directorios de uploads al inicio
+cleanUploadsDirectory();
+
+// Iniciar el temporizador de limpieza de sesiones
+setInterval(cleanAllSessions, SESSION_CLEANUP_INTERVAL_MS);
+
+// Función para limpiar directorio de uploads
+function cleanUploadsDirectory() {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  
+  if (fs.existsSync(uploadsDir)) {
+    try {
+      const files = fs.readdirSync(uploadsDir);
+      for (const file of files) {
+        try {
+          fs.unlinkSync(path.join(uploadsDir, file));
+        } catch (err) {
+          console.error(`Error eliminando archivo ${file}:`, err);
+        }
+      }
+      console.log('🧹 Directorio de uploads limpiado');
+    } catch (err) {
+      console.error('Error al limpiar directorio de uploads:', err);
+    }
+  } else {
+    fs.mkdirSync(uploadsDir);
+    console.log('📁 Directorio de uploads creado');
+  }
+}
+
+// Función para limpiar todas las sesiones
+async function cleanAllSessions() {
+  console.log('🕒 Iniciando limpieza programada de todas las sesiones...');
+  
+  // Primero cerrar todos los clientes activos
+  for (const [numero, client] of clients.entries()) {
+    try {
+      console.log(`🔌 Cerrando cliente para ${numero}`);
+      await client.destroy();
+      clients.delete(numero);
+    } catch (err) {
+      console.error(`Error cerrando cliente ${numero}:`, err);
+    }
+  }
+
+  // Limpiar estadísticas de mensajes
+  messageCounts.clear();
+  
+  // Borrar temporizadores de QR
+  for (const [numero, timeoutId] of qrTimeouts.entries()) {
+    clearTimeout(timeoutId);
+    qrTimeouts.delete(numero);
+  }
+
+  // Eliminar todas las carpetas de sesión
+  if (fs.existsSync(authPath)) {
+    try {
+      const sessions = fs.readdirSync(authPath);
+      for (const session of sessions) {
+        if (session.startsWith('session-')) {
+          const sessionPath = path.join(authPath, session);
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+          console.log(`🧹 Sesión ${session} eliminada`);
+        }
+      }
+      console.log('✨ Limpieza programada completada');
+    } catch (err) {
+      console.error('Error al limpiar sesiones:', err);
+    }
+  }
+  
+  // Limpiar también el directorio de uploads
+  cleanUploadsDirectory();
+}
+
+// Función para eliminar una sesión específica
+async function cleanSession(numero) {
+  console.log(`🗑️ Eliminando sesión para ${numero}`);
+  
+  try {
+    // Detener temporizador de QR si existe
+    if (qrTimeouts.has(numero)) {
+      clearTimeout(qrTimeouts.get(numero));
+      qrTimeouts.delete(numero);
+    }
+    
+    // Cerrar y destruir cliente si existe
+    const client = clients.get(numero);
+    if (client) {
+      await client.destroy();
+      clients.delete(numero);
+    }
+    
+    // Eliminar estadísticas de mensajes
+    messageCounts.delete(numero);
+    
+    // Eliminar carpeta de sesión
+const sessionPath = path.join(authPath, `session-${numero}`);
+if (fs.existsSync(sessionPath)) {
+  fs.rmSync(sessionPath, { recursive: true, force: true });
+  console.log(`🧹 Sesión de ${numero} eliminada`);
+}
+    
+    // Notificar a los suscriptores de QR que la sesión ha sido eliminada
+    if (qrSubscribers[numero]) {
+      qrSubscribers[numero].forEach(res => {
+        try {
+          res.write(`data: session_expired\n\n`);
+          res.end();
+        } catch (err) {
+          console.error(`Error notificando expiración a suscriptor de ${numero}:`, err);
+        }
+      });
+      delete qrSubscribers[numero];
+    }
+    
+    return true;
+  } catch (err) {
+    console.error(`❌ Error eliminando sesión para ${numero}:`, err);
+    return false;
+  }
+}
+
+// Configurar temporizador para eliminar una sesión si el QR no se escanea
+function setQRTimeout(numero) {
+  // Limpiar temporizador existente si hay uno
+  if (qrTimeouts.has(numero)) {
+    clearTimeout(qrTimeouts.get(numero));
+  }
+  
+  // Establecer nuevo temporizador
+  const timeoutId = setTimeout(async () => {
+    console.log(`⏰ Tiempo de espera de QR expirado para ${numero}`);
+    await cleanSession(numero);
+  }, QR_TIMEOUT_MS);
+  
+  qrTimeouts.set(numero, timeoutId);
+}
 
 // Función para obtener un retraso aleatorio entre MIN_DELAY_MS y MAX_DELAY_MS
 function getRandomDelay() {
@@ -100,7 +246,7 @@ function getOrCreateClient(numero) {
 
   const client = new Client({
     authStrategy: new LocalAuth({
-      clientId: `session-${numero}`,
+      clientId: `${numero}`,
       dataPath: './.wwebjs_auth'
     }),
     puppeteer: {
@@ -112,22 +258,34 @@ function getOrCreateClient(numero) {
   client.on('qr', async (qr) => {
     const qrDataUrl = await qrcode.toDataURL(qr);
     console.log(`🔐 QR para ${numero}`);
+    
+    // Establecer temporizador para este QR
+    setQRTimeout(numero);
+    
     sendQRToClients(numero, qrDataUrl);
   });
 
   client.on('ready', () => {
     console.log(`✅ Cliente ${numero} listo`);
+    
+    // Limpiar temporizador de QR cuando se autentica correctamente
+    if (qrTimeouts.has(numero)) {
+      clearTimeout(qrTimeouts.get(numero));
+      qrTimeouts.delete(numero);
+    }
+    
     sendReadySignal(numero);
   });
 
   client.on('auth_failure', msg => {
     console.error(`❌ Fallo de autenticación para ${numero}:`, msg);
+    // Limpiar la sesión en caso de fallo de autenticación
+    cleanSession(numero);
   });
 
   client.on('disconnected', async (reason) => {
     console.log(`🔌 Cliente ${numero} desconectado:`, reason);
-    await client.destroy();
-    clients.delete(numero);
+    await cleanSession(numero);
   });
 
   client.initialize();
@@ -314,6 +472,8 @@ app.post('/send-text', async (req, res) => {
 // Enviar imagen con caption personalizado y límites
 app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
   const fsPromises = fs.promises;
+  let originalPath = null;
+  let optimizedPath = null;
 
   try {
     if (!req.file) {
@@ -347,8 +507,8 @@ app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
       });
     }
 
-    const originalPath = req.file.path;
-    const optimizedPath = originalPath + '-optimized.jpg';
+    originalPath = req.file.path;
+    optimizedPath = originalPath + '-optimized.jpg';
 
     await sharp(originalPath)
       .resize({ width: 1024 })
@@ -364,16 +524,34 @@ app.post('/send-image-form', upload.single('imagen'), async (req, res) => {
 
     await client.sendMessage(chatId, media, { caption });
 
-    await fsPromises.unlink(originalPath);
-    await fsPromises.unlink(optimizedPath);
+    // Limpiar archivos después del envío
+    if (originalPath && fs.existsSync(originalPath)) {
+      await fsPromises.unlink(originalPath);
+    }
+    
+    if (optimizedPath && fs.existsSync(optimizedPath)) {
+      await fsPromises.unlink(optimizedPath);
+    }
 
     res.json({ number, status: 'imagen enviada' });
   } catch (err) {
     console.error('❌ Error enviando imagen:', err);
 
-    if (req.file && req.file.path) {
-      try { await fs.promises.unlink(req.file.path); } catch {}
-      try { await fs.promises.unlink(req.file.path + '-optimized.jpg'); } catch {}
+    // Asegurar la limpieza de archivos incluso en caso de error
+    try {
+      if (originalPath && fs.existsSync(originalPath)) {
+        await fs.promises.unlink(originalPath);
+      }
+    } catch (unlinkErr) {
+      console.error('Error eliminando archivo original:', unlinkErr);
+    }
+    
+    try {
+      if (optimizedPath && fs.existsSync(optimizedPath)) {
+        await fs.promises.unlink(optimizedPath);
+      }
+    } catch (unlinkErr) {
+      console.error('Error eliminando archivo optimizado:', unlinkErr);
     }
 
     res.status(500).json({ error: 'Error enviando imagen' });
@@ -388,26 +566,42 @@ app.post('/logout', async (req, res) => {
   }
 
   try {
-    const client = clients.get(numero);
-    if (client) {
-      await client.destroy();
-      clients.delete(numero);
+    const success = await cleanSession(numero);
+    if (success) {
+      res.json({ message: 'Sesión cerrada correctamente' });
+    } else {
+      res.status(500).json({ message: 'Error cerrando sesión' });
     }
-
-    // Eliminar también las estadísticas de mensajes
-    messageCounts.delete(numero);
-
-    const sessionPath = path.join(authPath, `session-${numero}`);
-    if (fs.existsSync(sessionPath)) {
-      fs.rmSync(sessionPath, { recursive: true, force: true });
-      console.log(`🧹 Sesión de ${numero} eliminada`);
-    }
-
-    res.json({ message: 'Sesión cerrada correctamente' });
   } catch (err) {
     console.error(`❌ Error cerrando sesión para ${numero}:`, err);
     res.status(500).json({ message: 'Error cerrando sesión' });
   }
+});
+
+// Nuevo endpoint para forzar limpieza de todas las sesiones
+app.post('/clean-all-sessions', async (req, res) => {
+  try {
+    await cleanAllSessions();
+    res.json({ message: 'Todas las sesiones han sido limpiadas correctamente' });
+  } catch (err) {
+    console.error('❌ Error limpiando todas las sesiones:', err);
+    res.status(500).json({ error: 'Error limpiando sesiones' });
+  }
+});
+
+// Nuevo endpoint para configurar el tiempo de espera de QR
+app.post('/set-qr-timeout', (req, res) => {
+  const { timeoutMinutes } = req.body;
+  
+  if (!timeoutMinutes || isNaN(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) {
+    return res.status(400).json({ error: 'El tiempo de espera debe ser entre 1 y 60 minutos' });
+  }
+  
+  const oldTimeout = QR_TIMEOUT_MS / (60 * 1000);
+  QR_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
+  
+  console.log(`⏱️ Tiempo de espera de QR actualizado de ${oldTimeout} a ${timeoutMinutes} minutos`);
+  res.json({ message: `Tiempo de espera actualizado a ${timeoutMinutes} minutos` });
 });
 
 app.listen(port, () => {
