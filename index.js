@@ -25,8 +25,8 @@ const QR_TIMEOUT_MS = 1 * 60 * 1000; // 2 minutos para escanear el QR
 // Límites de envío
 const HOURLY_LIMIT = 300;
 const DAILY_LIMIT = 2000;
-const MIN_DELAY_MS = 2000; // 2 segundos
-const MAX_DELAY_MS = 5000; // 5 segundos
+const MIN_DELAY_MS = 4000; // 4 segundos
+const MAX_DELAY_MS = 10000; // 10 segundos
 
 // Configurar temporizador para limpiar todas las sesiones cada 24 horas
 const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
