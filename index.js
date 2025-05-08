@@ -6,7 +6,7 @@ const path = require('path');
 const qrcode = require('qrcode');
 const cors = require('cors');
 const sharp = require('sharp');
-
+const cron = require('node-cron');
 const app = express();
 const port = 3000;
 
@@ -28,9 +28,6 @@ const DAILY_LIMIT = 2000;
 const MIN_DELAY_MS = 4000; // 4 segundos
 const MAX_DELAY_MS = 10000; // 10 segundos
 
-// Configurar temporizador para limpiar todas las sesiones cada 24 horas
-const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
-
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
@@ -38,8 +35,10 @@ app.use(express.static('public'));
 // Limpiar directorios de uploads al inicio
 cleanUploadsDirectory();
 
-// Iniciar el temporizador de limpieza de sesiones
-setInterval(cleanAllSessions, SESSION_CLEANUP_INTERVAL_MS);
+// Programar la ejecución cada sábado a las 00:00
+cron.schedule('0 0 * * 6', async () => {
+  await cleanAllSessions();
+});
 
 // Función para limpiar directorio de uploads
 function cleanUploadsDirectory() {
@@ -380,7 +379,9 @@ app.get('/qr-stream/:numero', (req, res) => {
   qrSubscribers[numero].push(res);
 
   req.on('close', () => {
+    if (Array.isArray(qrSubscribers[numero])) {
     qrSubscribers[numero] = qrSubscribers[numero].filter(sub => sub !== res);
+    }
   });
 });
 
